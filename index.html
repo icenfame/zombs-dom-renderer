@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zombs DOM Renderer</title>
+
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        padding: 0;
+        margin: 0;
+      }
+
+      body {
+        user-select: none;
+        font-family: Arial;
+      }
+
+      .player {
+        width: 128px;
+        height: 128px;
+
+        position: fixed;
+        top: calc(50% - 64px);
+        left: calc(50% - 64px);
+        /* border: 1px solid; */
+
+        background: url("./assets/player-base.svg"),
+          url("./assets/player-pickaxe-t1.svg");
+        background-repeat: no-repeat, no-repeat;
+        background-position: center, center 64px;
+
+        z-index: 1;
+      }
+
+      .map {
+        position: fixed;
+
+        background: url("./assets/map-grass.png");
+        background-color: rgba(0, 0, 0, 0.2);
+
+        z-index: 0;
+      }
+
+      .tree {
+        width: 192px;
+        height: 192px;
+
+        position: absolute;
+        background: url("./assets/map-tree.svg");
+      }
+
+      .stone {
+        width: 144px;
+        height: 144px;
+
+        position: absolute;
+        background: url("./assets/map-stone.svg");
+      }
+
+      .wall {
+        width: 48px;
+        height: 48px;
+
+        position: absolute;
+        background: url("./assets/wall-t1-base.svg");
+      }
+
+      .renderingBox {
+        position: fixed;
+        border: 1px solid #000;
+      }
+
+      .controls {
+        position: fixed;
+        right: 10px;
+        top: 10px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <main>
+      <div class="player"></div>
+      <div class="map"></div>
+
+      <div class="controls">
+        <label>
+          <input type="checkbox" />
+          Visualize rendering
+        </label>
+      </div>
+    </main>
+
+    <script>
+      // Constants
+      const MAP_SIZE = 1920 * 2;
+      const MAP_OBJECTS = [];
+
+      const PLAYER_POSITION = {
+        x: 2400,
+        y: 150,
+      };
+      const PLAYER_SIZE = 128;
+      const PLAYER_SPEED = 5;
+      let PLAYER_VIEW_BOX_WIDTH = window.innerWidth;
+      let PLAYER_VIEW_BOX_HEIGHT = window.innerHeight;
+
+      // Generate map
+      const map = document.querySelector("main .map");
+      map.style.width = `${MAP_SIZE}px`;
+      map.style.height = `${MAP_SIZE}px`;
+
+      let uniqID = 0;
+
+      // Trees
+      for (let i = 0; i < 15; i++) {
+        const x = generatePosition();
+        const y = generatePosition();
+
+        MAP_OBJECTS.push({
+          x,
+          y,
+          type: "tree",
+          size: 192,
+          rendered: false,
+          id: uniqID,
+        });
+        uniqID++;
+      }
+
+      // Stones
+      for (let i = 0; i < 5; i++) {
+        const x = generatePosition();
+        const y = generatePosition();
+
+        MAP_OBJECTS.push({
+          x,
+          y,
+          type: "stone",
+          size: 144,
+          rendered: false,
+          id: uniqID,
+        });
+        uniqID++;
+      }
+
+      // Walls
+      for (let i = 0; i < 20; i++) {
+        for (let j = 0; j < 20; j++) {
+          MAP_OBJECTS.push({
+            x: j * 48,
+            y: i * 48,
+            type: "wall",
+            size: 48,
+            rendered: false,
+            id: uniqID,
+          });
+          uniqID++;
+        }
+      }
+
+      // Controls
+      let pressedKeys = ["Space"];
+
+      window.onkeydown = ({ key }) => {
+        if (
+          !(
+            key === "ArrowUp" ||
+            key === "ArrowDown" ||
+            key === "ArrowLeft" ||
+            key === "ArrowRight"
+          )
+        ) {
+          return;
+        }
+
+        if (!pressedKeys.some((pressed) => pressed === key)) {
+          pressedKeys.push(key);
+        }
+      };
+
+      window.onkeyup = ({ key }) => {
+        if (
+          !(
+            key === "ArrowUp" ||
+            key === "ArrowDown" ||
+            key === "ArrowLeft" ||
+            key === "ArrowRight"
+          )
+        ) {
+          return;
+        }
+
+        pressedKeys = pressedKeys.filter((pressed) => pressed !== key);
+      };
+
+      // Rendering visualization
+      document.querySelector("[type='checkbox'").onchange = (event) => {
+        const { checked } = event.target;
+        pressedKeys = ["Space"];
+
+        if (!checked) {
+          PLAYER_VIEW_BOX_WIDTH = window.innerWidth;
+          PLAYER_VIEW_BOX_HEIGHT = window.innerHeight;
+
+          document.querySelector(".renderingBox").remove();
+          return;
+        }
+
+        PLAYER_VIEW_BOX_WIDTH = window.innerHeight;
+        PLAYER_VIEW_BOX_HEIGHT = window.innerHeight;
+
+        const renderingBox = document.createElement("div");
+        renderingBox.style.width = `${PLAYER_VIEW_BOX_WIDTH}px`;
+        renderingBox.style.height = `${PLAYER_VIEW_BOX_HEIGHT}px`;
+
+        renderingBox.style.left = `calc(50% - ${PLAYER_VIEW_BOX_WIDTH / 2}px)`;
+        renderingBox.style.top = `calc(50% - ${PLAYER_VIEW_BOX_HEIGHT / 2}px)`;
+        renderingBox.classList.add("renderingBox");
+
+        document.querySelector("main").appendChild(renderingBox);
+      };
+
+      // Rotate player
+      const player = document.querySelector(".player");
+      const rect = player.getBoundingClientRect();
+      const playerX = rect.left + rect.width / 2;
+      const playerY = rect.top + rect.height / 2;
+
+      window.onmousemove = (event) => {
+        const mouseX = event.clientX;
+        const mouseY = event.clientY;
+
+        player.style.transform = `rotate(${
+          angle(mouseX, mouseY, playerX, playerY) + 90
+        }deg`;
+      };
+
+      // Init position
+      document.querySelector(".map").style.left = `${
+        window.innerWidth / 2 - PLAYER_POSITION.x
+      }px`;
+      document.querySelector(".map").style.top = `${
+        window.innerHeight / 2 - PLAYER_POSITION.y
+      }px`;
+
+      // Main loop
+      function main() {
+        requestAnimationFrame(main);
+
+        pressedKeys.forEach((key) => {
+          if (key === "Space") {
+            pressedKeys = [];
+          }
+
+          const prevPosition = { ...PLAYER_POSITION };
+
+          // Controls
+          if (key === "ArrowUp") {
+            PLAYER_POSITION.y -= PLAYER_SPEED;
+          }
+          if (key === "ArrowDown") {
+            PLAYER_POSITION.y += PLAYER_SPEED;
+          }
+          if (key === "ArrowLeft") {
+            PLAYER_POSITION.x -= PLAYER_SPEED;
+          }
+          if (key === "ArrowRight") {
+            PLAYER_POSITION.x += PLAYER_SPEED;
+          }
+
+          // World boundaries
+          if (
+            PLAYER_POSITION.x <= PLAYER_SIZE / 2 ||
+            PLAYER_POSITION.x + PLAYER_SIZE / 2 >= MAP_SIZE
+          ) {
+            PLAYER_POSITION.x = prevPosition.x;
+          } else if (
+            PLAYER_POSITION.y <= PLAYER_SIZE / 2 ||
+            PLAYER_POSITION.y + PLAYER_SIZE / 2 >= MAP_SIZE
+          ) {
+            PLAYER_POSITION.y = prevPosition.y;
+          }
+
+          MAP_OBJECTS.forEach((obj) => {
+            const objX = obj.x;
+            const objY = obj.y;
+            const objWidth = obj.size;
+            const objHeight = obj.size;
+
+            // Calculate visible objects
+            if (
+              PLAYER_POSITION.x + PLAYER_VIEW_BOX_WIDTH / 2 >= objX &&
+              PLAYER_POSITION.x - PLAYER_VIEW_BOX_WIDTH / 2 <=
+                objX + objWidth &&
+              PLAYER_POSITION.y + PLAYER_VIEW_BOX_HEIGHT / 2 >= objY &&
+              PLAYER_POSITION.y - PLAYER_VIEW_BOX_HEIGHT / 2 <= objY + objHeight
+            ) {
+              if (!obj.rendered) {
+                const objElem = document.createElement("div");
+                objElem.classList.add(obj.type);
+                objElem.style.left = `${objX}px`;
+                objElem.style.top = `${objY}px`;
+                objElem.id = obj.id;
+
+                map.appendChild(objElem);
+                obj.rendered = true;
+              }
+            } else {
+              if (obj.rendered) {
+                document.getElementById(obj.id).remove();
+                obj.rendered = false;
+              }
+            }
+
+            // Check object collisions
+            if (obj.rendered) {
+              if (
+                PLAYER_POSITION.x + PLAYER_SIZE / 2 - obj.size / 3 >= objX &&
+                PLAYER_POSITION.x - PLAYER_SIZE / 2 + obj.size / 3 <=
+                  objX + objWidth &&
+                PLAYER_POSITION.y + PLAYER_SIZE / 2 - obj.size / 3 >= objY &&
+                PLAYER_POSITION.y - PLAYER_SIZE / 2 + obj.size / 3 <=
+                  objY + objHeight
+              ) {
+                if (key === "ArrowLeft" || key === "ArrowRight") {
+                  PLAYER_POSITION.x = prevPosition.x;
+                } else if (key === "ArrowUp" || key === "ArrowDown") {
+                  PLAYER_POSITION.y = prevPosition.y;
+                }
+              }
+            }
+          });
+
+          document.querySelector(".map").style.left = `${
+            window.innerWidth / 2 - PLAYER_POSITION.x
+          }px`;
+          document.querySelector(".map").style.top = `${
+            window.innerHeight / 2 - PLAYER_POSITION.y
+          }px`;
+        });
+      }
+      requestAnimationFrame(main);
+
+      // Utils
+      function angle(cx, cy, ex, ey) {
+        const dx = ex - cx;
+        const dy = ey - cy;
+        const rad = Math.atan2(dy, dx);
+
+        return (rad * 180) / Math.PI;
+      }
+
+      function generatePosition() {
+        return parseInt(Math.random() * MAP_SIZE);
+      }
+    </script>
+  </body>
+</html>
