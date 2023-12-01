@@ -5,7 +5,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Zombs DOM Renderer</title>
-    <link rel="shortcut icon" href="/assets/map-tree.svg">
+    <link rel="shortcut icon" href="./assets/map-tree.svg">
 
     <style>
       html,
@@ -25,7 +25,7 @@
         position: fixed;
         top: calc(50% - 64px);
         left: calc(50% - 64px);
-        background: url("/assets/player-base.svg"), url("/assets/player-pickaxe.svg");
+        background: url("./assets/player-base.svg"), url("./assets/player-pickaxe.svg");
         background-repeat: no-repeat, no-repeat;
         background-position: center, center 64px;
         z-index: 1;
@@ -40,7 +40,7 @@
 
       .map {
         position: fixed;
-        background: url("/assets/map-grass.png");
+        background: url("./assets/map-grass.png");
         z-index: 0;
       }
 
@@ -48,21 +48,21 @@
         position: absolute;
         width: 192px;
         height: 192px;
-        background: url("/assets/map-tree.svg");
+        background: url("./assets/map-tree.svg");
       }
 
       .stone {
         position: absolute;
         width: 144px;
         height: 144px;
-        background: url("/assets/map-stone.svg");
+        background: url("./assets/map-stone.svg");
       }
 
       .wall {
         position: absolute;
         width: 48px;
         height: 48px;
-        background: url("/assets/wall-base.svg");
+        background: url("./assets/wall-base.svg");
       }
 
       .renderingBox {
